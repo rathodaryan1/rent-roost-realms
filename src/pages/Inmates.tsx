@@ -1,236 +1,131 @@
 import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { useQueryClient } from "@tanstack/react-query";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Search, Plus, User, Phone, MapPin, Calendar, Edit, Trash2 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
+} from "@/components/ui/dialog";
+import { Plus, Search, Phone, Calendar as CalIcon, Users } from "lucide-react";
+import { useTenants } from "@/hooks/usePgData";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
-const Inmates = () => {
-  const [searchTerm, setSearchTerm] = useState("");
+export default function Inmates() {
+  const { user } = useAuth();
+  const { data: tenants, isLoading } = useTenants();
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const [form, setForm] = useState({ full_name: "", phone: "", monthly_rent: "", check_in_date: "" });
+  const [saving, setSaving] = useState(false);
 
-  const inmates = [
-    {
-      id: 1,
-      name: "John Doe",
-      mobile: "+91 9876543210",
-      room: "Room 12",
-      joinDate: "2024-01-15",
-      rent: 5000,
-      status: "active",
-      dueAmount: 0,
-      profilePic: null
-    },
-    {
-      id: 2,
-      name: "Sarah Wilson",
-      mobile: "+91 9876543211",
-      room: "Room 8",
-      joinDate: "2024-02-01",
-      rent: 4500,
-      status: "active",
-      dueAmount: 1500,
-      profilePic: null
-    },
-    {
-      id: 3,
-      name: "Mike Johnson",
-      mobile: "+91 9876543212",
-      room: "Room 15",
-      joinDate: "2024-01-10",
-      rent: 5500,
-      status: "notice",
-      dueAmount: 0,
-      profilePic: null
-    },
-    {
-      id: 4,
-      name: "Emma Davis",
-      mobile: "+91 9876543213",
-      room: "Room 3",
-      joinDate: "2024-03-01",
-      rent: 4000,
-      status: "active",
-      dueAmount: 0,
-      profilePic: null
-    }
-  ];
-
-  const filteredInmates = inmates.filter(inmate =>
-    inmate.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    inmate.mobile.includes(searchTerm) ||
-    inmate.room.toLowerCase().includes(searchTerm.toLowerCase())
+  const filtered = tenants?.filter(
+    (t) => !q || t.full_name.toLowerCase().includes(q.toLowerCase()) || t.phone?.includes(q)
   );
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active': return 'bg-green-100 text-green-800';
-      case 'notice': return 'bg-yellow-100 text-yellow-800';
-      case 'inactive': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'active': return 'Active';
-      case 'notice': return 'Notice Period';
-      case 'inactive': return 'Inactive';
-      default: return 'Unknown';
-    }
+  const onSave = async () => {
+    if (!form.full_name) return toast.error("Name is required");
+    setSaving(true);
+    const { error } = await supabase.from("tenants").insert({
+      owner_id: user!.id,
+      full_name: form.full_name,
+      phone: form.phone || null,
+      monthly_rent: form.monthly_rent ? Number(form.monthly_rent) : 0,
+      check_in_date: form.check_in_date || null,
+    });
+    setSaving(false);
+    if (error) return toast.error(error.message);
+    toast.success("Tenant added");
+    qc.invalidateQueries({ queryKey: ["tenants"] });
+    setForm({ full_name: "", phone: "", monthly_rent: "", check_in_date: "" });
+    setOpen(false);
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Inmates</h1>
-        <Button className="flex items-center gap-2">
-          <Plus className="h-4 w-4" />
-          Add Inmate
-        </Button>
+    <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold">Tenants</h1>
+          <p className="text-sm text-muted-foreground">Manage all your inmates and their details.</p>
+        </div>
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogTrigger asChild>
+            <Button className="bg-gradient-brand"><Plus className="h-4 w-4 mr-2" />Add tenant</Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader><DialogTitle>New tenant</DialogTitle></DialogHeader>
+            <div className="space-y-3 py-2">
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Full name *</label>
+                <Input value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1.5 block">Phone</label>
+                <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-medium mb-1.5 block">Monthly rent (₹)</label>
+                  <Input type="number" value={form.monthly_rent} onChange={(e) => setForm({ ...form, monthly_rent: e.target.value })} />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1.5 block">Check-in date</label>
+                  <Input type="date" value={form.check_in_date} onChange={(e) => setForm({ ...form, check_in_date: e.target.value })} />
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+              <Button onClick={onSave} disabled={saving} className="bg-gradient-brand">{saving ? "Saving..." : "Add tenant"}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Inmates</p>
-                <p className="text-2xl font-bold">{inmates.length}</p>
-              </div>
-              <User className="h-8 w-8 text-primary" />
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Active</p>
-                <p className="text-2xl font-bold text-green-600">
-                  {inmates.filter(i => i.status === 'active').length}
-                </p>
-              </div>
-              <User className="h-8 w-8 text-green-600" />
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Pending Dues</p>
-                <p className="text-2xl font-bold text-red-600">
-                  ₹{inmates.reduce((sum, i) => sum + i.dueAmount, 0)}
-                </p>
-              </div>
-              <MapPin className="h-8 w-8 text-red-600" />
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Monthly Revenue</p>
-                <p className="text-2xl font-bold text-blue-600">
-                  ₹{inmates.reduce((sum, i) => sum + i.rent, 0)}
-                </p>
-              </div>
-              <Calendar className="h-8 w-8 text-blue-600" />
-            </div>
-          </CardContent>
-        </Card>
+      <div className="relative max-w-md">
+        <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+        <Input className="pl-9" placeholder="Search by name or phone..." value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Search Inmates</CardTitle>
-          <CardDescription>Find inmates by name, mobile number, or room</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by name, mobile, or room..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
+      {isLoading ? (
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-32 rounded-xl" />)}
+        </div>
+      ) : !filtered?.length ? (
+        <Card className="p-12 text-center border-dashed">
+          <div className="h-14 w-14 rounded-full bg-primary/10 grid place-items-center mx-auto mb-4 text-primary">
+            <Users className="h-6 w-6" />
           </div>
-        </CardContent>
-      </Card>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredInmates.length > 0 ? (
-          filteredInmates.map((inmate) => (
-            <Card key={inmate.id} className="hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
-                      <User className="h-5 w-5 text-gray-500" />
-                    </div>
-                    <div>
-                      <CardTitle className="text-lg">{inmate.name}</CardTitle>
-                      <CardDescription>ID: #{inmate.id.toString().padStart(4, '0')}</CardDescription>
-                    </div>
-                  </div>
-                  <Badge className={getStatusColor(inmate.status)}>
-                    {getStatusText(inmate.status)}
-                  </Badge>
+          <h2 className="font-semibold text-lg mb-1">No tenants yet</h2>
+          <p className="text-sm text-muted-foreground mb-6">Add your first tenant to get started.</p>
+          <Button onClick={() => setOpen(true)} className="bg-gradient-brand"><Plus className="h-4 w-4 mr-2" />Add tenant</Button>
+        </Card>
+      ) : (
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filtered.map((t) => (
+            <Card key={t.id} className="p-5 hover:shadow-elevated transition-shadow">
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <h3 className="font-semibold">{t.full_name}</h3>
+                  <span className={`inline-block mt-1 text-xs px-2 py-0.5 rounded-full ${
+                    t.status === "active" ? "bg-success/10 text-success" :
+                    t.status === "checked_out" ? "bg-muted text-muted-foreground" :
+                    "bg-warning/10 text-warning"
+                  }`}>{t.status}</span>
                 </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Phone className="h-4 w-4" />
-                  {inmate.mobile}
-                </div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <MapPin className="h-4 w-4" />
-                  {inmate.room}
-                </div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Calendar className="h-4 w-4" />
-                  Joined: {new Date(inmate.joinDate).toLocaleDateString()}
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Rent: ₹{inmate.rent}/month</span>
-                  {inmate.dueAmount > 0 && (
-                    <span className="text-sm font-medium text-red-600">
-                      Due: ₹{inmate.dueAmount}
-                    </span>
-                  )}
-                </div>
-                <div className="flex gap-2 mt-4">
-                  <Button variant="outline" size="sm" className="flex-1">
-                    <Edit className="h-4 w-4 mr-1" />
-                    Edit
-                  </Button>
-                  <Button variant="outline" size="sm" className="flex-1">
-                    View Details
-                  </Button>
-                  <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700">
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardContent>
+                <p className="text-sm font-bold">₹{Number(t.monthly_rent ?? 0).toLocaleString("en-IN")}</p>
+              </div>
+              <div className="space-y-1.5 text-sm text-muted-foreground">
+                {t.phone && <div className="flex items-center gap-2"><Phone className="h-3.5 w-3.5" /> {t.phone}</div>}
+                {t.check_in_date && <div className="flex items-center gap-2"><CalIcon className="h-3.5 w-3.5" /> Since {t.check_in_date}</div>}
+              </div>
             </Card>
-          ))
-        ) : (
-          <div className="col-span-full text-center py-12">
-            <div className="text-muted-foreground">
-              <Search className="h-12 w-12 mx-auto mb-4 opacity-50" />
-              <h3 className="text-lg font-medium mb-2">No inmates found!</h3>
-              <p className="text-sm">Try adjusting your search terms or add a new inmate.</p>
-            </div>
-          </div>
-        )}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
-};
-
-export default Inmates;
+}
