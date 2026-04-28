@@ -1,7 +1,2 @@
-import Dashboard from "./Dashboard";
-
-const Index = () => {
-  return <Dashboard />;
-};
-
-export default Index;
+import Landing from "./public/Landing";
+export default function Index() { return <Landing />; }
