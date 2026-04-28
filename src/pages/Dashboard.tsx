@@ -1,145 +1,129 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, Home, CreditCard, TrendingUp, Calendar, AlertTriangle } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Link } from "react-router-dom";
+import {
+  Users, Home, CreditCard, TrendingUp, Plus, ArrowUpRight, AlertCircle,
+} from "lucide-react";
+import { useTenants, useRooms, usePayments, useExpenses } from "@/hooks/usePgData";
+import { useAuth } from "@/hooks/useAuth";
 
-const Dashboard = () => {
+const inr = (n: number) => `₹${n.toLocaleString("en-IN")}`;
+
+export default function Dashboard() {
+  const { user } = useAuth();
+  const { data: tenants, isLoading: tLoad } = useTenants();
+  const { data: rooms, isLoading: rLoad } = useRooms();
+  const { data: payments, isLoading: pLoad } = usePayments();
+  const { data: expenses } = useExpenses();
+
+  const activeTenants = tenants?.filter((t) => t.status === "active").length ?? 0;
+  const totalRooms = rooms?.length ?? 0;
+  const occupiedRooms = rooms?.filter((r) => r.status === "occupied").length ?? 0;
+  const occupancy = totalRooms > 0 ? Math.round((occupiedRooms / totalRooms) * 100) : 0;
+
+  const thisMonth = new Date().toISOString().slice(0, 7);
+  const monthRevenue = payments
+    ?.filter((p) => p.status === "paid" && p.payment_date?.startsWith(thisMonth))
+    .reduce((s, p) => s + Number(p.amount), 0) ?? 0;
+  const pendingDues = payments
+    ?.filter((p) => p.status === "pending" || p.status === "overdue")
+    .reduce((s, p) => s + Number(p.amount), 0) ?? 0;
+
   const stats = [
-    {
-      title: "Total Inmates",
-      value: "24",
-      change: "+2 from last month",
-      icon: Users,
-      color: "text-blue-600"
-    },
-    {
-      title: "Available Rooms",
-      value: "8",
-      change: "3 rooms vacant",
-      icon: Home,
-      color: "text-green-600"
-    },
-    {
-      title: "Monthly Revenue",
-      value: "₹45,000",
-      change: "+12% from last month",
-      icon: CreditCard,
-      color: "text-purple-600"
-    },
-    {
-      title: "Occupancy Rate",
-      value: "75%",
-      change: "Above average",
-      icon: TrendingUp,
-      color: "text-orange-600"
-    }
+    { title: "Active Tenants", value: String(activeTenants), icon: Users, hint: `${tenants?.length ?? 0} total` },
+    { title: "Occupancy", value: `${occupancy}%`, icon: Home, hint: `${occupiedRooms}/${totalRooms} rooms` },
+    { title: "Revenue (this month)", value: inr(monthRevenue), icon: CreditCard, hint: "Paid invoices" },
+    { title: "Pending dues", value: inr(pendingDues), icon: TrendingUp, hint: "Across all tenants" },
   ];
 
-  const recentActivities = [
-    { type: "check-in", name: "John Doe", time: "2 hours ago", room: "Room 12" },
-    { type: "payment", name: "Sarah Wilson", time: "4 hours ago", amount: "₹3,500" },
-    { type: "check-out", name: "Mike Johnson", time: "Yesterday", room: "Room 8" },
-    { type: "issue", name: "Room 15", time: "2 days ago", issue: "AC not working" },
-  ];
+  const loading = tLoad || rLoad || pLoad;
+  const empty = !loading && totalRooms === 0 && (tenants?.length ?? 0) === 0;
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Dashboard</h1>
-        <div className="text-sm text-muted-foreground">
-          Last updated: {new Date().toLocaleDateString()}
+    <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold">Welcome back</h1>
+          <p className="text-sm text-muted-foreground">Here's what's happening at your PG today.</p>
         </div>
+        <Button asChild className="bg-gradient-brand"><Link to="/inmates"><Plus className="h-4 w-4 mr-2" />Add tenant</Link></Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat) => (
-          <Card key={stat.title} className="hover:shadow-lg transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">
-                {stat.title}
-              </CardTitle>
-              <stat.icon className={`h-4 w-4 ${stat.color}`} />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stat.value}</div>
-              <p className="text-xs text-muted-foreground">
-                {stat.change}
-              </p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Recent Activities
-            </CardTitle>
-            <CardDescription>
-              Latest activities in your PG
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {recentActivities.map((activity, index) => (
-                <div key={index} className="flex items-center space-x-4">
-                  <div className={`w-2 h-2 rounded-full ${
-                    activity.type === 'check-in' ? 'bg-green-500' :
-                    activity.type === 'payment' ? 'bg-blue-500' :
-                    activity.type === 'check-out' ? 'bg-yellow-500' :
-                    'bg-red-500'
-                  }`} />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">{activity.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {activity.room || activity.amount || activity.issue} • {activity.time}
-                    </p>
+      {empty ? (
+        <Card className="p-12 text-center border-dashed">
+          <div className="h-14 w-14 rounded-full bg-primary/10 grid place-items-center mx-auto mb-4 text-primary">
+            <Home className="h-6 w-6" />
+          </div>
+          <h2 className="font-semibold text-lg mb-1">Let's set up your first PG</h2>
+          <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
+            Add a property and rooms to start tracking tenants and rent.
+          </p>
+          <Button asChild className="bg-gradient-brand"><Link to="/availability">Add your first room</Link></Button>
+        </Card>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+            {stats.map((s) =>
+              loading ? (
+                <Skeleton key={s.title} className="h-28 rounded-xl" />
+              ) : (
+                <Card key={s.title} className="p-4 md:p-5 shadow-soft hover:shadow-elevated transition-shadow">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs md:text-sm text-muted-foreground font-medium">{s.title}</p>
+                    <div className="h-8 w-8 rounded-lg bg-primary/10 grid place-items-center text-primary">
+                      <s.icon className="h-4 w-4" />
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                  <p className="text-xl md:text-2xl font-bold tracking-tight">{s.value}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{s.hint}</p>
+                </Card>
+              )
+            )}
+          </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5" />
-              Pending Actions
-            </CardTitle>
-            <CardDescription>
-              Items that need your attention
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between p-3 bg-red-50 rounded-lg">
-                <div>
-                  <p className="text-sm font-medium">Rent Overdue</p>
-                  <p className="text-xs text-muted-foreground">3 inmates</p>
-                </div>
-                <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded">High</span>
+          <div className="grid lg:grid-cols-3 gap-4">
+            <Card className="p-5 lg:col-span-2">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold">Recent payments</h3>
+                <Button asChild variant="ghost" size="sm"><Link to="/payments">View all <ArrowUpRight className="h-3 w-3 ml-1" /></Link></Button>
               </div>
-              <div className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg">
-                <div>
-                  <p className="text-sm font-medium">Maintenance Requests</p>
-                  <p className="text-xs text-muted-foreground">2 pending</p>
+              {!payments?.length ? (
+                <p className="text-sm text-muted-foreground py-8 text-center">No payments yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {payments.slice(0, 5).map((p) => (
+                    <div key={p.id} className="flex items-center justify-between py-2 border-b border-border/60 last:border-0">
+                      <div>
+                        <p className="text-sm font-medium">{p.month || "Rent"}</p>
+                        <p className="text-xs text-muted-foreground">{p.payment_date}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-semibold">{inr(Number(p.amount))}</p>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                          p.status === "paid" ? "bg-success/10 text-success" :
+                          p.status === "overdue" ? "bg-destructive/10 text-destructive" :
+                          "bg-warning/10 text-warning"
+                        }`}>{p.status}</span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-1 rounded">Medium</span>
+              )}
+            </Card>
+
+            <Card className="p-5">
+              <h3 className="font-semibold mb-4 flex items-center gap-2"><AlertCircle className="h-4 w-4 text-warning" /> Quick actions</h3>
+              <div className="space-y-2">
+                <Button asChild variant="outline" className="w-full justify-start"><Link to="/checkin">Check in a guest</Link></Button>
+                <Button asChild variant="outline" className="w-full justify-start"><Link to="/payments">Record payment</Link></Button>
+                <Button asChild variant="outline" className="w-full justify-start"><Link to="/expenses">Log expense</Link></Button>
+                <Button asChild variant="outline" className="w-full justify-start"><Link to="/issues">Report issue</Link></Button>
               </div>
-              <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-                <div>
-                  <p className="text-sm font-medium">Payment Approvals</p>
-                  <p className="text-xs text-muted-foreground">5 pending</p>
-                </div>
-                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">Low</span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            </Card>
+          </div>
+        </>
+      )}
     </div>
   );
-};
-
-export default Dashboard;
+}

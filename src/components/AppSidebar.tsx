@@ -44,7 +44,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const mainMenuItems = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
   { title: "Bookings", url: "/bookings", icon: Calendar },
   { title: "Check-in", url: "/checkin", icon: UserCheck },
   { title: "Availability", url: "/availability", icon: CheckCircle },
